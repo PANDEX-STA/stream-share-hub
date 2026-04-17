@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { ShoppingBag } from "lucide-react";
+import { useSound } from "@/hooks/useSound";
 
 const names = ["Carlos", "María", "Lucía", "Diego", "Andrea", "José", "Valeria", "Luis"];
 const services = ["HBO Max", "Amazon Prime Video"];
@@ -10,6 +11,7 @@ type Notice = { id: number; name: string; service: string; city: string };
 
 const SocialProofToast = () => {
   const [current, setCurrent] = useState<Notice | null>(null);
+  const { play } = useSound();
 
   useEffect(() => {
     let id = 0;
@@ -21,6 +23,7 @@ const SocialProofToast = () => {
         service: services[Math.floor(Math.random() * services.length)],
         city: cities[Math.floor(Math.random() * cities.length)],
       });
+      play("notify");
       setTimeout(() => setCurrent(null), 4500);
     };
     const first = setTimeout(show, 6000);
