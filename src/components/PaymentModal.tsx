@@ -49,6 +49,8 @@ const PaymentModal = ({ service, onClose }: Props) => {
   const [name, setName] = useState("");
   const [sending, setSending] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { user } = useAuth();
+  const { play } = useSound();
 
   // Reset state when service changes / closes
   useEffect(() => {
