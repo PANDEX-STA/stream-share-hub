@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Check, Crown, Star, ShoppingCart } from "lucide-react";
+import { Check, Crown, Star, ShoppingCart, MessageCircle } from "lucide-react";
 import PaymentModal from "./PaymentModal";
 
 const services = [
@@ -38,8 +38,17 @@ const services = [
   },
 ];
 
+const WHATSAPP_NUMBER = "51999999999";
+
 const ServicesSection = () => {
-  const [selectedService, setSelectedService] = useState<{ name: string; price: string } | null>(null);
+  const [selectedService, setSelectedService] = useState<
+    { name: string; price: string; features: string[] } | null
+  >(null);
+
+  const waUrl = (name: string) =>
+    `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(
+      `Hola, quiero comprar un perfil de ${name}.`
+    )}`;
 
   return (
     <>
@@ -108,21 +117,42 @@ const ServicesSection = () => {
                     ))}
                   </ul>
 
-                  <button
-                    onClick={() => setSelectedService({ name: service.name, price: service.price })}
-                    className={`w-full flex items-center justify-center gap-2 font-semibold py-3.5 rounded-xl transition-all ${
-                      service.popular
-                        ? "bg-gradient-primary text-primary-foreground shadow-glow hover:scale-[1.02]"
-                        : "bg-secondary text-secondary-foreground border border-border hover:bg-muted"
-                    }`}
-                  >
-                    <ShoppingCart className="w-4 h-4" />
-                    Pagar ahora
-                  </button>
+                  <div className="space-y-2.5">
+                    <button
+                      onClick={() =>
+                        setSelectedService({
+                          name: service.name,
+                          price: service.price,
+                          features: service.features,
+                        })
+                      }
+                      className={`w-full flex items-center justify-center gap-2 font-semibold py-3.5 rounded-xl transition-all ${
+                        service.popular
+                          ? "bg-gradient-primary text-primary-foreground shadow-glow hover:scale-[1.02]"
+                          : "bg-secondary text-secondary-foreground border border-border hover:bg-muted"
+                      }`}
+                    >
+                      <ShoppingCart className="w-4 h-4" />
+                      Comprar ahora
+                    </button>
+                    <a
+                      href={waUrl(service.name)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full flex items-center justify-center gap-2 font-medium py-3 rounded-xl border border-border bg-secondary/40 text-secondary-foreground hover:bg-muted transition-colors"
+                    >
+                      <MessageCircle className="w-4 h-4 text-accent" />
+                      Comprar por WhatsApp
+                    </a>
+                  </div>
                 </div>
               </motion.div>
             ))}
           </div>
+
+          <p className="text-center text-xs text-muted-foreground mt-8">
+            Tu acceso se activa al confirmar el pago. Servicio mensual.
+          </p>
         </div>
       </section>
 
