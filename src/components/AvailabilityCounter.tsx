@@ -1,32 +1,24 @@
 import { motion } from "framer-motion";
 import { AlertTriangle, Users } from "lucide-react";
 import { useEffect, useState } from "react";
+import { inventory } from "@/lib/inventory";
 
-const services = [
-  { name: "HBO Max", total: 5, color: "hsl(265, 80%, 60%)" },
-  { name: "Amazon Prime Video", total: 6, color: "hsl(200, 90%, 55%)" },
-];
+const meta: Record<string, { color: string }> = {
+  "HBO Max": { color: "hsl(265, 80%, 60%)" },
+  "Amazon Prime Video": { color: "hsl(200, 90%, 55%)" },
+};
 
 const AvailabilityCounter = () => {
-  const [counts, setCounts] = useState(() =>
-    services.map((s) => ({
-      ...s,
-      available: Math.floor(Math.random() * 2) + 1,
-    }))
-  );
+  const [, force] = useState(0);
 
-  // Simulated subtle variation
   useEffect(() => {
-    const interval = setInterval(() => {
-      setCounts((prev) =>
-        prev.map((s) => ({
-          ...s,
-          available: Math.max(1, Math.min(s.total - 2, s.available + (Math.random() > 0.5 ? 0 : -1 + Math.floor(Math.random() * 2)))),
-        }))
-      );
-    }, 15000);
-    return () => clearInterval(interval);
+    const unsub = inventory.subscribe(() => force((v) => v + 1));
+    return () => {
+      unsub();
+    };
   }, []);
+
+  const items = Object.entries(inventory.all());
 
   return (
     <section className="py-12 px-4">
@@ -38,25 +30,30 @@ const AvailabilityCounter = () => {
           className="bg-gradient-card border border-primary/30 rounded-2xl p-6 sm:p-8"
         >
           <div className="flex items-center gap-2 mb-6">
-            <AlertTriangle className="w-5 h-5 text-accent animate-pulse-glow" />
+            <AlertTriangle className="w-5 h-5 text-accent" />
             <span className="text-accent font-semibold text-sm uppercase tracking-wider">
               Disponibilidad en tiempo real
             </span>
           </div>
 
           <div className="grid sm:grid-cols-2 gap-4">
-            {counts.map((s) => {
-              const pct = (s.available / s.total) * 100;
+            {items.map(([name, s]) => {
+              const pct = s.total ? (s.available / s.total) * 100 : 0;
+              const color = meta[name]?.color ?? "hsl(var(--accent))";
+              const lowStock = s.available <= 2;
               return (
                 <div
-                  key={s.name}
+                  key={name}
                   className="bg-secondary/50 rounded-xl p-4 border border-border"
                 >
                   <div className="flex items-center justify-between mb-3">
                     <span className="font-heading font-semibold text-foreground">
-                      {s.name}
+                      {name}
                     </span>
-                    <div className="flex items-center gap-1.5 text-xs font-medium" style={{ color: s.color }}>
+                    <div
+                      className="flex items-center gap-1.5 text-xs font-medium"
+                      style={{ color }}
+                    >
                       <Users className="w-3.5 h-3.5" />
                       {s.available}/{s.total}
                     </div>
@@ -64,16 +61,18 @@ const AvailabilityCounter = () => {
                   <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
                     <motion.div
                       className="h-full rounded-full"
-                      style={{ background: s.color }}
+                      style={{ background: color }}
                       initial={{ width: 0 }}
                       animate={{ width: `${pct}%` }}
                       transition={{ duration: 0.6 }}
                     />
                   </div>
                   <p className="text-xs text-muted-foreground mt-2">
-                    {s.available <= 2
-                      ? "⚠️ ¡Quedan muy pocos perfiles!"
-                      : "Perfiles disponibles"}
+                    {s.available === 0
+                      ? "❌ Agotado por hoy"
+                      : lowStock
+                      ? `⚠️ ¡Quedan solo ${s.available} perfiles!`
+                      : `${s.available} perfiles disponibles`}
                   </p>
                 </div>
               );
