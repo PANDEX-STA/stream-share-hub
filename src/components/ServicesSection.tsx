@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Check, Crown, Star, ShoppingCart, MessageCircle } from "lucide-react";
 import PaymentModal from "./PaymentModal";
+import { inventory } from "@/lib/inventory";
+import { useSound } from "@/hooks/useSound";
 
 const services = [
   {
@@ -44,10 +46,19 @@ const ServicesSection = () => {
   const [selectedService, setSelectedService] = useState<
     { name: string; price: string; features: string[] } | null
   >(null);
+  const [, force] = useState(0);
+  const { play } = useSound();
+
+  useEffect(() => {
+    const unsub = inventory.subscribe(() => force((v) => v + 1));
+    return () => {
+      unsub();
+    };
+  }, []);
 
   const waUrl = (name: string) =>
     `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(
-      `Hola, quiero comprar un perfil de ${name}.`
+      `Hola, quiero comprar un perfil de ${name}.`,
     )}`;
 
   return (
