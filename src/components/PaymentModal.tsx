@@ -14,6 +14,9 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { inventory } from "@/lib/inventory";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { useSound } from "@/hooks/useSound";
 
 type Service = {
   name: string;
