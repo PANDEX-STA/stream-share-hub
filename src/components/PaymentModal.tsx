@@ -134,19 +134,43 @@ const PaymentModal = ({ service, onClose }: Props) => {
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  const handleSubmit = () => {
+  const parsePrice = (p: string) => {
+    const n = parseFloat(p.replace(/[^0-9.]/g, ""));
+    return Number.isFinite(n) ? n : 0;
+  };
+
+  const handleSubmit = async () => {
     if (!name.trim()) {
       toast.error("Ingresa tu nombre");
+      play("error");
       return;
     }
     setSending(true);
+    play("click");
     const extra = file
       ? "Adjuntaré mi comprobante en este chat."
       : "Enviaré mi comprobante en este chat.";
+
+    // Persist subscription if user is logged in (silent on failure)
+    if (user) {
+      try {
+        await supabase.from("subscriptions").insert({
+          user_id: user.id,
+          service_name: service.name,
+          price: parsePrice(service.price),
+          status: "pending",
+          payment_method: method || null,
+        });
+      } catch {
+        /* ignore — checkout should not block */
+      }
+    }
+
     setTimeout(() => {
       inventory.decrement(service.name);
       setSending(false);
       setStep("done");
+      play("success");
       openWhatsApp(extra);
     }, 600);
   };
