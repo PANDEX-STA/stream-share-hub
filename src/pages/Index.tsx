@@ -12,9 +12,10 @@ import PolicySection from "@/components/PolicySection";
 import Footer from "@/components/Footer";
 import WhatsAppButton from "@/components/WhatsAppButton";
 import SocialProofToast from "@/components/SocialProofToast";
+import MobileActionBar from "@/components/MobileActionBar";
 
 const Index = () => (
-  <div className="min-h-screen">
+  <div className="min-h-screen pb-20 md:pb-0">
     <Navbar />
     <HeroSection />
     <ServicesSection />
@@ -29,6 +30,7 @@ const Index = () => (
     <Footer />
     <WhatsAppButton />
     <SocialProofToast />
+    <MobileActionBar />
   </div>
 );
 

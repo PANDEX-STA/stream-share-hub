@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Check, Crown, Star, ShoppingCart, MessageCircle } from "lucide-react";
 import PaymentModal from "./PaymentModal";
+import { inventory } from "@/lib/inventory";
+import { useSound } from "@/hooks/useSound";
 
 const services = [
   {
@@ -44,10 +46,19 @@ const ServicesSection = () => {
   const [selectedService, setSelectedService] = useState<
     { name: string; price: string; features: string[] } | null
   >(null);
+  const [, force] = useState(0);
+  const { play } = useSound();
+
+  useEffect(() => {
+    const unsub = inventory.subscribe(() => force((v) => v + 1));
+    return () => {
+      unsub();
+    };
+  }, []);
 
   const waUrl = (name: string) =>
     `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(
-      `Hola, quiero comprar un perfil de ${name}.`
+      `Hola, quiero comprar un perfil de ${name}.`,
     )}`;
 
   return (
@@ -117,34 +128,45 @@ const ServicesSection = () => {
                     ))}
                   </ul>
 
-                  <div className="space-y-2.5">
-                    <button
-                      onClick={() =>
-                        setSelectedService({
-                          name: service.name,
-                          price: service.price,
-                          features: service.features,
-                        })
-                      }
-                      className={`w-full flex items-center justify-center gap-2 font-semibold py-3.5 rounded-xl transition-all ${
-                        service.popular
-                          ? "bg-gradient-primary text-primary-foreground shadow-glow hover:scale-[1.02]"
-                          : "bg-secondary text-secondary-foreground border border-border hover:bg-muted"
-                      }`}
-                    >
-                      <ShoppingCart className="w-4 h-4" />
-                      Comprar ahora
-                    </button>
-                    <a
-                      href={waUrl(service.name)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="w-full flex items-center justify-center gap-2 font-medium py-3 rounded-xl border border-border bg-secondary/40 text-secondary-foreground hover:bg-muted transition-colors"
-                    >
-                      <MessageCircle className="w-4 h-4 text-accent" />
-                      Comprar por WhatsApp
-                    </a>
-                  </div>
+                  {(() => {
+                    const stock = inventory.get(service.name);
+                    const soldOut = stock.available <= 0;
+                    return (
+                      <div className="space-y-2.5">
+                        <button
+                          disabled={soldOut}
+                          onClick={() => {
+                            play("click");
+                            setSelectedService({
+                              name: service.name,
+                              price: service.price,
+                              features: service.features,
+                            });
+                          }}
+                          className={`w-full flex items-center justify-center gap-2 font-semibold py-3.5 rounded-xl transition-all ${
+                            soldOut
+                              ? "bg-muted text-muted-foreground cursor-not-allowed"
+                              : service.popular
+                                ? "bg-gradient-primary text-primary-foreground shadow-glow hover:scale-[1.02]"
+                                : "bg-secondary text-secondary-foreground border border-border hover:bg-muted"
+                          }`}
+                        >
+                          <ShoppingCart className="w-4 h-4" />
+                          {soldOut ? "Agotado por hoy" : "Comprar ahora"}
+                        </button>
+                        <a
+                          href={waUrl(service.name)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={() => play("click")}
+                          className="w-full flex items-center justify-center gap-2 font-medium py-3 rounded-xl border border-border bg-secondary/40 text-secondary-foreground hover:bg-muted transition-colors"
+                        >
+                          <MessageCircle className="w-4 h-4 text-accent" />
+                          Comprar por WhatsApp
+                        </a>
+                      </div>
+                    );
+                  })()}
                 </div>
               </motion.div>
             ))}
