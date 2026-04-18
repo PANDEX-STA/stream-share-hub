@@ -1,8 +1,9 @@
 import { motion } from "framer-motion";
-import { MessageCircle, AlertTriangle } from "lucide-react";
+import { MessageCircle } from "lucide-react";
+import { buildWhatsAppUrl } from "@/lib/whatsapp";
 
 const CTASection = () => {
-  const whatsappUrl = "https://wa.me/51999999999?text=Hola,%20quiero%20un%20perfil%20de%20streaming";
+  const waUrl = buildWhatsAppUrl();
 
   return (
     <section className="py-24 px-4">
@@ -14,20 +15,16 @@ const CTASection = () => {
       >
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_hsl(4,90%,55%,0.08),_transparent_70%)]" />
         <div className="relative z-10">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/30 mb-6">
-            <AlertTriangle className="w-4 h-4 text-accent" />
-            <span className="text-sm font-medium text-accent animate-pulse-glow">¡Solo quedan pocos cupos!</span>
-          </div>
-
           <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold font-heading mb-4">
-            No te quedes sin tu <span className="text-gradient">perfil</span>
+            ¿Listo para empezar tu <span className="text-gradient">perfil</span>?
           </h2>
           <p className="text-muted-foreground text-lg mb-8 max-w-lg mx-auto">
-            Contáctanos ahora por WhatsApp y obtén acceso inmediato a tu plataforma favorita
+            Escríbenos por WhatsApp y te guiamos en el proceso de compra y
+            activación paso a paso.
           </p>
 
           <a
-            href={whatsappUrl}
+            href={waUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-3 bg-[hsl(142,70%,45%)] hover:bg-[hsl(142,70%,40%)] text-primary-foreground font-bold px-10 py-4 rounded-xl text-lg transition-all hover:scale-105 shadow-[0_0_30px_-5px_hsl(142,70%,45%,0.4)]"
