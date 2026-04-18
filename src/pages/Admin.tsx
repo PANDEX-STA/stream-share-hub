@@ -105,13 +105,16 @@ const Admin = () => {
     status: AdminOrder["status"],
   ) => {
     setUpdatingId(id);
-    const updates: Record<string, unknown> = { status };
-    if (status === "activo") {
-      const now = new Date();
-      const expires = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-      updates.starts_at = now.toISOString();
-      updates.expires_at = expires.toISOString();
-    }
+    const now = new Date();
+    const expires = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+    const updates =
+      status === "activo"
+        ? {
+            status,
+            starts_at: now.toISOString(),
+            expires_at: expires.toISOString(),
+          }
+        : { status };
     const { error } = await supabase.from("orders").update(updates).eq("id", id);
     setUpdatingId(null);
     if (error) {
