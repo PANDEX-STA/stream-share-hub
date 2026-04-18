@@ -1,14 +1,14 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { MessageCircle, X } from "lucide-react";
 import { useState } from "react";
+import { buildWhatsAppUrl } from "@/lib/whatsapp";
 
 const WhatsAppButton = () => {
   const [open, setOpen] = useState(false);
-  const whatsappUrl =
-    "https://wa.me/51999999999?text=Hola,%20quiero%20un%20perfil%20de%20streaming";
+  const whatsappUrl = buildWhatsAppUrl();
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3">
+    <div className="fixed bottom-24 md:bottom-6 right-6 z-50 flex flex-col items-end gap-3">
       <AnimatePresence>
         {open && (
           <motion.div
@@ -18,10 +18,11 @@ const WhatsAppButton = () => {
             className="bg-card border border-border rounded-2xl p-5 shadow-card w-72"
           >
             <p className="text-foreground font-semibold text-sm mb-1">
-              💬 ¡Hola! ¿En qué podemos ayudarte?
+              💬 ¿En qué podemos ayudarte?
             </p>
             <p className="text-muted-foreground text-xs mb-4">
-              Estamos listos para activarte tu cuenta. Respuesta en minutos.
+              Te respondemos por WhatsApp para resolver dudas y guiarte en la
+              compra.
             </p>
             <a
               href={whatsappUrl}

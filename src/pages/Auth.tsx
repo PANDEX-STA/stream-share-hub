@@ -6,7 +6,6 @@ import { toast } from "sonner";
 import { Loader2, ArrowLeft } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { useSound } from "@/hooks/useSound";
 
 const signInSchema = z.object({
   email: z.string().trim().email("Correo inválido").max(255),
@@ -25,7 +24,6 @@ const Auth = () => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { play } = useSound();
 
   useEffect(() => {
     if (user) navigate("/dashboard", { replace: true });
@@ -39,7 +37,6 @@ const Auth = () => {
         const parsed = signUpSchema.safeParse({ fullName, email, password });
         if (!parsed.success) {
           toast.error(parsed.error.issues[0].message);
-          play("error");
           return;
         }
         const { error } = await supabase.auth.signUp({
@@ -52,17 +49,14 @@ const Auth = () => {
         });
         if (error) {
           toast.error(error.message);
-          play("error");
           return;
         }
         toast.success("¡Cuenta creada! Ya puedes iniciar sesión.");
-        play("success");
         navigate("/dashboard", { replace: true });
       } else {
         const parsed = signInSchema.safeParse({ email, password });
         if (!parsed.success) {
           toast.error(parsed.error.issues[0].message);
-          play("error");
           return;
         }
         const { error } = await supabase.auth.signInWithPassword({
@@ -71,11 +65,9 @@ const Auth = () => {
         });
         if (error) {
           toast.error("Credenciales incorrectas");
-          play("error");
           return;
         }
         toast.success("¡Bienvenido!");
-        play("success");
         navigate("/dashboard", { replace: true });
       }
     } finally {
@@ -103,8 +95,8 @@ const Auth = () => {
           </h1>
           <p className="text-sm text-muted-foreground mb-6">
             {mode === "signin"
-              ? "Accede a tu panel de servicios."
-              : "Gestiona tus perfiles de streaming."}
+              ? "Accede a tu panel de pedidos."
+              : "Regístrate para comprar y dejar reseñas."}
           </p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -155,7 +147,6 @@ const Auth = () => {
             <button
               type="submit"
               disabled={loading}
-              onClick={() => play("click")}
               className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-gradient-primary text-primary-foreground font-semibold shadow-glow hover:scale-[1.02] transition-transform disabled:opacity-50"
             >
               {loading && <Loader2 className="w-4 h-4 animate-spin" />}

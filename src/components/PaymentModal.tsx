@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useNavigate } from "react-router-dom";
 import {
   X,
   Upload,
@@ -11,33 +12,32 @@ import {
   AlertCircle,
   ShieldCheck,
   Loader2,
+  LogIn,
 } from "lucide-react";
 import { toast } from "sonner";
-import { inventory } from "@/lib/inventory";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { useSound } from "@/hooks/useSound";
-
-type Service = {
-  name: string;
-  price: string;
-  features?: string[];
-};
+import { buildWhatsAppUrl } from "@/lib/whatsapp";
+import type { ServiceData } from "@/lib/services";
 
 interface Props {
-  service: Service | null;
+  service: ServiceData | null;
   onClose: () => void;
 }
 
-type Step = "summary" | "method" | "upload" | "form" | "done";
+type Step = "summary" | "method" | "upload" | "confirm" | "done";
 
-const WHATSAPP_NUMBER = "51999999999";
 const MAX_FILE_MB = 5;
 
 const paymentMethods = [
-  { id: "yape", label: "Yape", icon: Smartphone, color: "hsl(280, 80%, 55%)" },
-  { id: "plin", label: "Plin", icon: Smartphone, color: "hsl(150, 70%, 45%)" },
-  { id: "card", label: "Visa / Mastercard", icon: CreditCard, color: "hsl(220, 80%, 55%)" },
+  { id: "Yape", label: "Yape", icon: Smartphone, color: "hsl(280, 80%, 55%)" },
+  { id: "Plin", label: "Plin", icon: Smartphone, color: "hsl(150, 70%, 45%)" },
+  {
+    id: "Tarjeta",
+    label: "Visa / Mastercard",
+    icon: CreditCard,
+    color: "hsl(220, 80%, 55%)",
+  },
 ];
 
 const PaymentModal = ({ service, onClose }: Props) => {
@@ -46,13 +46,12 @@ const PaymentModal = ({ service, onClose }: Props) => {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
-  const [name, setName] = useState("");
-  const [sending, setSending] = useState(false);
+  const [contact, setContact] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { user } = useAuth();
-  const { play } = useSound();
+  const navigate = useNavigate();
 
-  // Reset state when service changes / closes
   useEffect(() => {
     if (!service) {
       setStep("summary");
@@ -60,12 +59,11 @@ const PaymentModal = ({ service, onClose }: Props) => {
       setFile(null);
       setPreview(null);
       setUploadError(null);
-      setName("");
-      setSending(false);
+      setContact("");
+      setSubmitting(false);
     }
   }, [service]);
 
-  // Cleanup preview URL
   useEffect(() => {
     return () => {
       if (preview) URL.revokeObjectURL(preview);
@@ -78,22 +76,16 @@ const PaymentModal = ({ service, onClose }: Props) => {
     setUploadError(null);
     if (step === "method") setStep("summary");
     else if (step === "upload") setStep("method");
-    else if (step === "form") setStep("upload");
-  };
-
-  const buildWaMessage = (extra?: string) => {
-    const lines = [
-      `Hola, quiero comprar un perfil de *${service.name}* (${service.price}/mes).`,
-    ];
-    if (name.trim()) lines.push(`Nombre: ${name.trim()}`);
-    if (method) lines.push(`Método de pago: ${method}`);
-    if (extra) lines.push(extra);
-    return encodeURIComponent(lines.join("\n"));
+    else if (step === "confirm") setStep("upload");
   };
 
   const openWhatsApp = (extra?: string) => {
-    const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${buildWaMessage(extra)}`;
-    window.open(url, "_blank", "noopener,noreferrer");
+    const lines = [
+      `Hola, quiero comprar un perfil de *${service.name}* (${service.price}/mes).`,
+    ];
+    if (method) lines.push(`Método de pago: ${method}`);
+    if (extra) lines.push(extra);
+    window.open(buildWhatsAppUrl(lines.join("\n")), "_blank", "noopener,noreferrer");
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -101,7 +93,7 @@ const PaymentModal = ({ service, onClose }: Props) => {
     const f = e.target.files?.[0];
     if (!f) return;
 
-    const validTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+    const validTypes = ["image/jpeg", "image/jpg", "image/png"];
     if (!validTypes.includes(f.type)) {
       setUploadError("Formato no válido. Sube una imagen JPG o PNG.");
       setFile(null);
@@ -120,9 +112,9 @@ const PaymentModal = ({ service, onClose }: Props) => {
       if (preview) URL.revokeObjectURL(preview);
       setFile(f);
       setPreview(url);
-      toast.success("Comprobante cargado correctamente");
+      toast.success("Comprobante listo para enviar");
     } catch {
-      setUploadError("No se pudo procesar la imagen. Envíala por WhatsApp.");
+      setUploadError("No se pudo procesar la imagen.");
     }
   };
 
@@ -134,53 +126,63 @@ const PaymentModal = ({ service, onClose }: Props) => {
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  const parsePrice = (p: string) => {
-    const n = parseFloat(p.replace(/[^0-9.]/g, ""));
-    return Number.isFinite(n) ? n : 0;
-  };
-
   const handleSubmit = async () => {
-    if (!name.trim()) {
-      toast.error("Ingresa tu nombre");
-      play("error");
+    if (!user) {
+      toast.error("Inicia sesión para registrar tu pedido");
       return;
     }
-    setSending(true);
-    play("click");
-    const extra = file
-      ? "Adjuntaré mi comprobante en este chat."
-      : "Enviaré mi comprobante en este chat.";
-
-    // Persist subscription if user is logged in (silent on failure)
-    if (user) {
-      try {
-        await supabase.from("subscriptions").insert({
-          user_id: user.id,
-          service_name: service.name,
-          price: parsePrice(service.price),
-          status: "pending",
-          payment_method: method || null,
-        });
-      } catch {
-        /* ignore — checkout should not block */
+    setSubmitting(true);
+    try {
+      let receiptPath: string | null = null;
+      if (file) {
+        const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
+        const path = `${user.id}/${Date.now()}-${Math.random()
+          .toString(36)
+          .slice(2, 8)}.${ext}`;
+        const { error: upErr } = await supabase.storage
+          .from("receipts")
+          .upload(path, file, {
+            contentType: file.type,
+            upsert: false,
+          });
+        if (upErr) {
+          toast.error("No se pudo subir el comprobante. Inténtalo de nuevo.");
+          setSubmitting(false);
+          return;
+        }
+        receiptPath = path;
       }
-    }
 
-    setTimeout(() => {
-      inventory.decrement(service.name);
-      setSending(false);
+      const { error: insertErr } = await supabase.from("orders").insert({
+        user_id: user.id,
+        service_slug: service.slug,
+        service_name: service.name,
+        price: service.priceNumber,
+        payment_method: method || null,
+        status: "pendiente",
+        receipt_path: receiptPath,
+        customer_contact: contact.trim() || null,
+      });
+
+      if (insertErr) {
+        toast.error("No se pudo registrar tu pedido");
+        setSubmitting(false);
+        return;
+      }
+
+      toast.success("¡Pedido registrado! Estado: Pendiente");
       setStep("done");
-      play("success");
-      openWhatsApp(extra);
-    }, 600);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const headerTitle = {
     summary: "Resumen de tu compra",
     method: "Método de pago",
     upload: "Sube tu comprobante",
-    form: "Tus datos",
-    done: "¡Listo!",
+    confirm: "Confirmar pedido",
+    done: "¡Pedido registrado!",
   }[step];
 
   return (
@@ -199,7 +201,6 @@ const PaymentModal = ({ service, onClose }: Props) => {
           onClick={(e) => e.stopPropagation()}
           className="bg-card border border-border w-full max-w-md max-h-[92vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl p-5 sm:p-7 shadow-card relative"
         >
-          {/* Header */}
           <div className="flex items-center justify-between mb-1">
             <div className="flex items-center gap-2">
               {step !== "summary" && step !== "done" && (
@@ -237,40 +238,46 @@ const PaymentModal = ({ service, onClose }: Props) => {
                   <span className="text-2xl font-bold text-accent">
                     {service.price}
                     <span className="text-xs text-muted-foreground font-normal">
-                      {" "}
-                      /mes
+                      {" "}/mes
                     </span>
                   </span>
                 </div>
-                {service.features && (
-                  <ul className="space-y-1.5">
-                    {service.features.slice(0, 4).map((f) => (
-                      <li
-                        key={f}
-                        className="flex items-start gap-2 text-sm text-muted-foreground"
-                      >
-                        <CheckCircle className="w-4 h-4 text-accent flex-shrink-0 mt-0.5" />
-                        <span>{f}</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
+                <ul className="space-y-1.5">
+                  {service.features.slice(0, 4).map((f) => (
+                    <li
+                      key={f}
+                      className="flex items-start gap-2 text-sm text-muted-foreground"
+                    >
+                      <CheckCircle className="w-4 h-4 text-accent flex-shrink-0 mt-0.5" />
+                      <span>{f}</span>
+                    </li>
+                  ))}
+                </ul>
               </div>
 
               <div className="flex items-start gap-2 text-xs text-muted-foreground bg-primary/5 border border-primary/20 rounded-lg p-3">
                 <ShieldCheck className="w-4 h-4 text-accent flex-shrink-0 mt-0.5" />
                 <span>
-                  Tu acceso se activa al confirmar el pago. Servicio mensual,
-                  cancelas cuando quieras.
+                  Se creará un pedido en estado <strong>Pendiente</strong>. El
+                  acceso se activa después de que validemos tu comprobante.
                 </span>
               </div>
 
-              <button
-                onClick={() => setStep("method")}
-                className="w-full py-3.5 rounded-xl bg-gradient-primary text-primary-foreground font-semibold shadow-glow hover:scale-[1.02] transition-transform"
-              >
-                Confirmar compra
-              </button>
+              {!user ? (
+                <button
+                  onClick={() => navigate("/auth")}
+                  className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-gradient-primary text-primary-foreground font-semibold shadow-glow"
+                >
+                  <LogIn className="w-4 h-4" /> Inicia sesión para comprar
+                </button>
+              ) : (
+                <button
+                  onClick={() => setStep("method")}
+                  className="w-full py-3.5 rounded-xl bg-gradient-primary text-primary-foreground font-semibold shadow-glow hover:scale-[1.02] transition-transform"
+                >
+                  Continuar
+                </button>
+              )}
               <button
                 onClick={() => openWhatsApp()}
                 className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-border bg-secondary text-secondary-foreground font-medium hover:bg-muted transition-colors"
@@ -297,7 +304,7 @@ const PaymentModal = ({ service, onClose }: Props) => {
                 <button
                   key={pm.id}
                   onClick={() => {
-                    setMethod(pm.label);
+                    setMethod(pm.id);
                     setStep("upload");
                   }}
                   className="w-full flex items-center gap-3 p-3.5 rounded-xl border border-border bg-secondary/50 hover:border-primary/40 transition-colors text-left"
@@ -311,13 +318,6 @@ const PaymentModal = ({ service, onClose }: Props) => {
                   <span className="font-medium text-foreground">{pm.label}</span>
                 </button>
               ))}
-              <button
-                onClick={() => openWhatsApp()}
-                className="w-full flex items-center justify-center gap-2 py-3 mt-2 rounded-xl border border-border bg-secondary/30 text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-              >
-                <MessageCircle className="w-4 h-4" />
-                Prefiero comprar por WhatsApp
-              </button>
             </div>
           )}
 
@@ -334,7 +334,7 @@ const PaymentModal = ({ service, onClose }: Props) => {
                     Envía {service.price} al número:
                   </p>
                   <p className="text-2xl font-bold font-heading text-foreground">
-                    999 999 999
+                    927 134 660
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
                     Titular: StreamZone
@@ -344,19 +344,19 @@ const PaymentModal = ({ service, onClose }: Props) => {
 
               <div>
                 <label className="block text-sm font-medium text-foreground mb-2">
-                  Sube tu comprobante (opcional)
+                  Sube tu comprobante (JPG o PNG)
                 </label>
 
                 {!preview ? (
                   <label className="flex flex-col items-center justify-center gap-2 w-full py-6 rounded-xl border border-dashed border-border hover:border-primary/40 cursor-pointer transition-colors bg-secondary/30">
                     <Upload className="w-5 h-5 text-muted-foreground" />
                     <span className="text-sm text-muted-foreground">
-                      Toca para seleccionar (JPG / PNG, máx {MAX_FILE_MB}MB)
+                      Toca para seleccionar (máx {MAX_FILE_MB}MB)
                     </span>
                     <input
                       ref={fileInputRef}
                       type="file"
-                      accept="image/jpeg,image/jpg,image/png,image/webp"
+                      accept="image/jpeg,image/jpg,image/png"
                       capture="environment"
                       className="hidden"
                       onChange={handleFileChange}
@@ -386,26 +386,17 @@ const PaymentModal = ({ service, onClose }: Props) => {
                 {uploadError && (
                   <div className="mt-2 flex items-start gap-2 text-xs text-destructive bg-destructive/10 border border-destructive/30 rounded-lg p-2.5">
                     <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <p>{uploadError}</p>
-                      <button
-                        onClick={() => openWhatsApp("La subida falló, te enviaré el comprobante aquí.")}
-                        className="text-accent font-medium hover:underline mt-1 inline-flex items-center gap-1"
-                      >
-                        <MessageCircle className="w-3 h-3" />
-                        Enviar por WhatsApp
-                      </button>
-                    </div>
+                    <p>{uploadError}</p>
                   </div>
                 )}
 
                 <p className="text-xs text-muted-foreground mt-2">
-                  Si no puedes subir la imagen, podrás enviarla por WhatsApp luego.
+                  Si no puedes subirlo ahora, podrás hacerlo luego desde tu panel.
                 </p>
               </div>
 
               <button
-                onClick={() => setStep("form")}
+                onClick={() => setStep("confirm")}
                 className="w-full py-3 rounded-xl bg-gradient-primary text-primary-foreground font-semibold hover:scale-[1.02] transition-transform"
               >
                 Continuar
@@ -413,19 +404,19 @@ const PaymentModal = ({ service, onClose }: Props) => {
             </div>
           )}
 
-          {/* FORM */}
-          {step === "form" && (
+          {/* CONFIRM */}
+          {step === "confirm" && (
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1.5">
-                  Tu nombre completo
+                  Tu contacto (opcional)
                 </label>
                 <input
                   type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Ej: Juan Pérez"
-                  maxLength={100}
+                  value={contact}
+                  onChange={(e) => setContact(e.target.value)}
+                  placeholder="Tu WhatsApp o correo para coordinar"
+                  maxLength={120}
                   className="w-full rounded-xl border border-border bg-secondary/50 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/40"
                 />
               </div>
@@ -441,7 +432,7 @@ const PaymentModal = ({ service, onClose }: Props) => {
                 <p className="text-muted-foreground">
                   Comprobante:{" "}
                   <span className="text-foreground font-medium">
-                    {file ? "Adjuntado ✓" : "Por WhatsApp"}
+                    {file ? "Adjunto ✓" : "Lo subiré después"}
                   </span>
                 </p>
                 <p className="text-muted-foreground">
@@ -452,15 +443,15 @@ const PaymentModal = ({ service, onClose }: Props) => {
 
               <button
                 onClick={handleSubmit}
-                disabled={sending}
+                disabled={submitting}
                 className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-gradient-primary text-primary-foreground font-semibold hover:scale-[1.02] transition-transform disabled:opacity-50"
               >
-                {sending ? (
+                {submitting ? (
                   <>
-                    <Loader2 className="w-4 h-4 animate-spin" /> Procesando...
+                    <Loader2 className="w-4 h-4 animate-spin" /> Registrando...
                   </>
                 ) : (
-                  <>Ya pagué — Confirmar por WhatsApp</>
+                  <>Registrar pedido</>
                 )}
               </button>
             </div>
@@ -470,28 +461,32 @@ const PaymentModal = ({ service, onClose }: Props) => {
           {step === "done" && (
             <div className="text-center py-4">
               <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-accent/15 flex items-center justify-center">
-                <CheckCircle className="w-9 h-9 text-accent" />
+                <CheckCircle className="w-8 h-8 text-accent" />
               </div>
-              <h4 className="text-lg font-bold font-heading text-foreground mb-2">
-                ¡Pago recibido!
+              <h4 className="text-lg font-bold font-heading mb-2">
+                ¡Pedido registrado!
               </h4>
               <p className="text-sm text-muted-foreground mb-5">
-                En breve recibirás tu acceso por WhatsApp. Si no se abrió la
-                ventana, contáctanos directamente.
+                Tu pedido está en estado <strong>Pendiente</strong>. Validaremos
+                tu comprobante y activaremos tu acceso lo antes posible.
               </p>
-              <div className="space-y-2">
+              <div className="space-y-2.5">
                 <button
-                  onClick={() => openWhatsApp()}
-                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-gradient-primary text-primary-foreground font-semibold"
+                  onClick={() => {
+                    onClose();
+                    navigate("/dashboard");
+                  }}
+                  className="w-full py-3 rounded-xl bg-gradient-primary text-primary-foreground font-semibold"
                 >
-                  <MessageCircle className="w-4 h-4" />
-                  Abrir WhatsApp
+                  Ir a mi panel
                 </button>
                 <button
-                  onClick={onClose}
-                  className="w-full py-2.5 rounded-xl bg-secondary text-secondary-foreground font-medium hover:bg-muted transition-colors"
+                  onClick={() =>
+                    openWhatsApp("Acabo de registrar mi pedido en la web.")
+                  }
+                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-border bg-secondary text-secondary-foreground"
                 >
-                  Volver al inicio
+                  <MessageCircle className="w-4 h-4" /> Avisar por WhatsApp
                 </button>
               </div>
             </div>
